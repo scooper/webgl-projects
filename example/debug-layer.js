@@ -15,7 +15,7 @@ export class DebugLayer extends Layer {
      * @param {number} deltaTime 
      */
     onUpdate(deltaTime) {
-        const deltaTimeString = 'dt: ' + deltaTime + 'ms';
+        const deltaTimeString = 'dt: ' + deltaTime + 's';
         this.debugOverlay.textContent = deltaTimeString;
     }
 
