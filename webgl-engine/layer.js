@@ -33,7 +33,7 @@ export class Layer {
         this.init();
     }
 
-    init() {
+    async init() {
         
     }
 }

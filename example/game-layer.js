@@ -42,9 +42,37 @@ export class GameLayer extends Layer {
                    '#...........#############' +
                    '#.......................#' +
                    '#########################';
-    }
 
+        this.texBuffer = null;
+        this.texBufferWidth = 0;
+        this.texBufferHeight = 0;
+        this.drawTex = false;
+        this.textureLoaded = false;
+    }
+    
     init() {
+        let image = new Image();
+        let canvas = document.createElement('canvas')
+        let context = canvas.getContext('2d');
+        image.onload = () => {
+            canvas.height = image.height;
+            canvas.width = image.width;
+            context.drawImage(image, 0, 0);
+            let rgbdata = context.getImageData(0, 0, image.width, image.height).data;
+            this.texBuffer = [];
+            for(let i = 0; i <= rgbdata.length; i += 4) {
+                let r = rgbdata[i];
+                let g = rgbdata[i+1];
+                let b = rgbdata[i+2];
+                this.texBuffer.push([r, g, b]);
+            }
+            this.texBufferHeight = image.height;
+            this.texBufferWidth = image.width;
+            this.textureLoaded = true;
+
+            document.body.appendChild(canvas);
+        };
+        image.src = "./example/res/brick-wall.png";
     }
 
    /**
@@ -53,7 +81,6 @@ export class GameLayer extends Layer {
      */
     onUpdate(deltaTime) {
         this.gc.clear();
-
 
         if(Input.isKeyPressed(KeyType.KeyA)) {
             this.playerA -= (this.playerSpeed * 0.6) * deltaTime;
@@ -111,6 +138,7 @@ export class GameLayer extends Layer {
             let distanceToWall = 0.0;
 
             let hitWall = false;     
+            let side = null;
             
             
             if(rayDir[0] < 0) {
@@ -135,10 +163,12 @@ export class GameLayer extends Layer {
                     mapCheck[0] += step[0];
                     distanceToWall = rayLength[0];
                     rayLength[0] += rayUnitStepSize[0];
+                    side = 0; // x horizontal hit
                 } else {
                     mapCheck[1] += step[1];
                     distanceToWall = rayLength[1];
                     rayLength[1] += rayUnitStepSize[1];
+                    side = 1; // y vertical hit
                 }
 
                 if(mapCheck[0] >= 0 && mapCheck[0] < this.mapMaxX && mapCheck[1] >= 0 && mapCheck[1] < this.mapMaxY) {
@@ -148,13 +178,26 @@ export class GameLayer extends Layer {
                 }
             }
 
-            // let intersection = null;
+            let intersection = [0, 0];
 
-            // if(hitWall) {
-            //     intersection = rayDir;
-            //     glMatrix.vec2.scale(intersection, intersection, distanceToWall);
-            //     glMatrix.vec2.add(intersection, rayStart, intersection);
-            // }
+            if(hitWall) {
+                intersection = rayDir;
+                intersection[0] = this.playerX + distanceToWall * rayDir[0];
+                intersection[1] = this.playerY + distanceToWall * rayDir[1];;
+            }
+
+            let sampleX = 0;
+            if(side === 0) {
+                sampleX = intersection[1];
+                
+            } else {
+                sampleX = intersection[0];
+            }
+
+            let pixX = Math.trunc((sampleX * this.texBufferWidth) % this.texBufferWidth);
+
+            if(side === 0 && rayDir[0] > 0) pixX = this.texBufferWidth - pixX - 1;
+            if(side === 1 && rayDir[1] < 0) pixX = this.texBufferWidth - pixX - 1;
             
             let ceiling = (height / 2.0) - height / distanceToWall;
             let floor = height - ceiling;
@@ -164,8 +207,20 @@ export class GameLayer extends Layer {
                     this.gc.drawScreenPixel(x, y, 0.0, 0.1, 0.4);
                 } else if(y > ceiling && y <= floor) {
                     if(distanceToWall < this.maxDepth) {
-                        let col = ((0.5/this.maxDepth) * (this.maxDepth - distanceToWall));
-                        this.gc.drawScreenPixel(x, y, col, col, col);
+                        if(this.textureLoaded) {
+                            let sampleY = (y - ceiling) / (floor - ceiling);
+                            let pixY = Math.trunc(((sampleY) * this.texBufferHeight) % this.texBufferHeight);
+                            let pix = pixY * this.texBufferHeight + pixX;
+                            let color = [this.texBuffer[pix][0]/255, this.texBuffer[pix][1]/255, this.texBuffer[pix][2]/255];
+                            let dark = ((this.maxDepth - distanceToWall) / this.maxDepth) * 1.0;
+                            color[0] *= dark;
+                            color[1] *= dark;
+                            color[2] *= dark;
+                            this.gc.drawScreenPixel(x, y, color[0], color[1], color[2]);
+                        } else {
+                            let col = ((this.maxDepth - distanceToWall) / this.maxDepth) * 0.5
+                            this.gc.drawScreenPixel(x, y, col, col, col);
+                        }            
                     } else {
                         this.gc.drawScreenPixel(x, y, 0.0, 0.0, 0.0);
                     }
